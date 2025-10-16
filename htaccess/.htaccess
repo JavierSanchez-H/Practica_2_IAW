@@ -1,0 +1,5 @@
+          AuthType Basic
+          AuthName "Control solo permitido para el Admin"
+          AuthBasicProvider file
+          AuthUserFile "/etc/apache2/.htpasswd"
+          Require valid-user
