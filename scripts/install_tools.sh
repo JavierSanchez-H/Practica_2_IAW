@@ -1,59 +1,23 @@
 #!/bin/bash
 set -ex
-
-# Importamos el archivo .env
+# importamos variables
 source .env
-
-# Configuramos las respuestas de instlación de phpmyadmin
-echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/mysql/app-pass password $PHPMYADMIN_APP_PASSWORD" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/app-password-confirm password $PHPMYADMIN_APP_PASSWORD" | debconf-set-selections
-
-# Actualizamos repositorios
-apt update
-
-# Instalamos phpmyadmin
-sudo apt install phpmyadmin php-mbstring php-zip php-gd php-json php-curl -y
-
-#--------------------------------------------------------------------------------
-
-#Instalación de Adminer
-mkdir -p /var/www/html/adminer
-
-wget https://github.com/vrana/adminer/releases/download/v5.4.1/adminer-5.4.1-mysql.php -P /var/www/html/adminer/
-
-mv /var/www/html/adminer/adminer-5.4.1-mysql.php /var/www/html/adminer/index.php
-
-# --------------------------------------------------------------------------------
-
-#Creamos una base de datos de ejemplo
-
-mysql -u root -e "DROP  DATABASE IF EXISTS $DB_NAME"
-mysql -u root -e "CREATE DATABASE $DB_NAME"
-
-# Creamos un  usuario /contraseña 
-mysql -u root -e "DROP USER IF EXISTS $DB_USER@'%';"
-mysql -u root -e "CREATE USER '$DB_USER'@'%' IDENTIFIED BY '$DB_PASSWORD';"
-
-# Damos permisos al usuario sobre la base de datos
-mysql -u root -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO $DB_USER@'%';"
-# Intalamos goaccess
-sudo apt install goaccess -y
-#creamos la carpeta ststs
-mkdir -p /var/www/html/stats
-#hacemos la carpeta dentro de el home de el  usuario
-mkdir -p $home/htaccess
-
-
-goaccess /var/log/apache2/access.log -o /var/www/html/stats/index.html --log-format=COMBINED --real-time-html --daemonize
-
-cp ../conf/000-default-stats.conf /etc/apache2/sites-available/000-default.conf
-
-sudo htpasswd -bc /etc/apache2/.htpasswd $STATS_USERNAME $STATS_PASSWORD
-
-#copiamos elarchivo htacces
-
-cp ../htaccess/.htaccess /var/www/html/stats
-
-systemctl restart apache2
+# instalamos herramientas necesarias
+sudo dnf install -y wget unzip
+# instalamos phpmyadmin
+cd /var/www/html
+sudo rm -rf phpmyadmin phpMyAdmin-*
+sudo wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz
+sudo tar xvf phpMyAdmin-latest-all-languages.tar.gz
+sudo rm phpMyAdmin-latest-all-languages.tar.gz
+sudo mv phpMyAdmin-* phpmyadmin
+sudo chown -R apache:apache /var/www/html/phpmyadmin
+sudo chcon -R -t httpd_sys_rw_content_t /var/www/html/phpmyadmin
+# creamos base de datos y usuario 
+sudo mysql -u root -e "create database if not exists $DB_NAME;"
+sudo mysql -u root -e "create user if not exists '$DB_USER'@'localhost' identified by '$DB_PASSWORD';"
+sudo mysql -u root -e "grant all privileges on $DB_NAME.* to '$DB_USER'@'localhost';"
+sudo mysql -u root -e "flush privileges;"
+# reiniciamos servicios
+sudo systemctl restart httpd
+sudo systemctl restart mysqld
